@@ -1,0 +1,6 @@
+node_modules/
+logs/
+.env
+pm2.log
+pm2.pid
+
