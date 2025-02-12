@@ -54,7 +54,6 @@ Paste the following:
 server {
     listen 80;
     server_name localhost;
-
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
@@ -63,11 +62,9 @@ server {
         proxy_set_header Host $host;
         proxy_cache_bypass $http_upgrade;
     }
-
     access_log /var/log/nginx/access.log;
     error_log /var/log/nginx/error.log;
 }
-
 Save and exit.
 
 2️⃣ Restart Nginx
@@ -83,24 +80,6 @@ Enter a number between 1 and 10 and click "Submit".
 If your guess is correct, you win! Otherwise, try again.
 
 📜 API Endpoints
-
-Method
-
-Endpoint
-
-Description
-
-GET
-
-/
-
-Serves the game UI
-
-POST
-
-/guess
-
-Accepts a number and returns success/failure
 
 Example API request:
 
