@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Number Guesser</title>
+    <script>
+        async function guessNumber() {
+            const number = document.getElementById("number").value;
+            const res = await fetch('/guess', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ number })
+            });
+            const data = await res.json();
+            document.getElementById("result").innerText = data.message;
+        }
+    </script>
+</head>
+<body>
+    <h1>Guess the Number</h1>
+    <input type="number" id="number">
+    <button onclick="guessNumber()">Submit</button>
+    <p id="result"></p>
+</body>
+</html>
+
