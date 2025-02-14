@@ -9,30 +9,64 @@ const _ = require('lodash');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Configure Elasticsearch client
-const esClient = new Client({
-  node: process.env.ELASTICSEARCH_HOST,
-  auth: {
-    username: process.env.ELASTICSEARCH_USER,
-    password: process.env.ELASTICSEARCH_PASSWORD,
-  },
-  tls: {
-    rejectUnauthorized: false,  // Disable SSL validation for self-signed certificates
-  },
-});
+// 🔵 Function to Create Elasticsearch Client with Retry Mechanism
+async function createElasticsearchClient() {
+    let esClient;
+    let retries = 5; // Max retries
+    const retryInterval = 5000; // 5 seconds
+
+    while (retries > 0) {
+        try {
+            esClient = new Client({
+                node: process.env.ELASTICSEARCH_HOST || 'http://localhost:9200',
+                auth: {
+                    username: process.env.ELASTICSEARCH_USER || 'elastic',
+                    password: process.env.ELASTICSEARCH_PASSWORD || 'changeme',
+                },
+                tls: { rejectUnauthorized: false }, // Disable SSL validation for self-signed certificates
+            });
+
+            await esClient.ping(); // Check if Elasticsearch is available
+            console.log('✅ Connected to Elasticsearch');
+            return esClient;
+        } catch (error) {
+            console.error(`❌ Failed to connect to Elasticsearch (Attempts left: ${retries - 1})`);
+            retries--;
+            await new Promise((res) => setTimeout(res, retryInterval)); // Wait before retrying
+        }
+    }
+
+    throw new Error('❌ Elasticsearch is not available. Exiting application.');
+}
+
+// 🔵 Initialize Elasticsearch Client
+let esClient;
+(async () => {
+    try {
+        esClient = await createElasticsearchClient();
+        startServer(); // Start Express server after successful ES connection
+    } catch (error) {
+        console.error(error);
+        process.exit(1); // Exit the application if ES is not available
+    }
+})();
 
 app.use(express.json());
 
-// Log requests to Elasticsearch
+// 🔵 Log requests to Elasticsearch
 app.use(morgan('combined', {
-  stream: {
-    write: async (message) => {
-      await esClient.index({
-        index: 'app-logs',
-        body: { message, timestamp: new Date() },
-      });
+    stream: {
+        write: async (message) => {
+            try {
+                await esClient.index({
+                    index: 'app-logs',
+                    body: { message, timestamp: new Date() },
+                });
+            } catch (error) {
+                console.error('❌ Failed to log to Elasticsearch:', error.message);
+            }
+        },
     },
-  },
 }));
 
 // Serve static files from 'public' directory
@@ -51,26 +85,16 @@ app.post('/guess', async (req, res) => {
     const { number } = req.body;
     if (!number) return res.status(400).json({ message: 'Enter a number' });
 
-    let result = '❌ Try again!';
     if (parseInt(number) === secretNumber) {
-        result = '🎉 Correct!';
+        return res.json({ message: '🎉 Correct!' });
+    } else {
+        return res.json({ message: '❌ Try again!' });
     }
-
-    // Log the guess attempt to Elasticsearch
-    await esClient.index({
-        index: 'game-data',
-        body: {
-            number: parseInt(number),
-            result,
-            timestamp: new Date(),
-        },
-    });
-
-    return res.json({ message: result });
 });
 
-if (require.main === module) {
-    app.listen(port, '0.0.0.0', () => console.log(`🚀 Server running on http://localhost:${port}`));
+// 🔵 Start Express Server After Successful Elasticsearch Connection
+function startServer() {
+    app.listen(port, () => console.log(`🚀 Server running on http://localhost:${port}`));
 }
 
 module.exports = app;
